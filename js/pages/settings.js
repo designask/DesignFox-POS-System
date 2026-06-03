@@ -108,6 +108,53 @@ function renderSettings() {
                 </div>
             </div>
 
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-header">
+                    <h3>Email Settings</h3>
+                    <span style="font-size: 12px; color: var(--text-light);">Configure email for sending invoices</span>
+                </div>
+                <div class="card-body">
+                    <form id="emailSettingsForm" onsubmit="handleSaveEmailSettings(event)">
+                        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 20px;">
+                            <p style="font-size: 13px; color: #1e40af; line-height: 1.6;">
+                                <strong>How it works:</strong> When you click "Send via Email" on an invoice, your default email app (Gmail, Outlook, etc.) will open with the client's email, subject, and invoice details pre-filled. You just review and hit send.
+                            </p>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Your Email Address</label>
+                                <input type="email" class="form-input" id="settSenderEmail" value="${settings.emailSettings?.senderEmail || settings.company.email || ''}" placeholder="your@email.com">
+                                <small style="color: var(--text-light); font-size: 11px;">This will appear as the sender</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Reply-To Name</label>
+                                <input type="text" class="form-input" id="settSenderName" value="${settings.emailSettings?.senderName || settings.company.name || ''}" placeholder="Your Name / Company">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Default Email Subject</label>
+                            <input type="text" class="form-input" id="settEmailSubject" value="${settings.emailSettings?.defaultSubject || 'Invoice {invoice_number} from {company_name}'}" placeholder="Invoice {invoice_number} from {company_name}">
+                            <small style="color: var(--text-light); font-size: 11px;">Variables: {invoice_number}, {company_name}, {client_name}, {total}, {due_date}</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Default Email Body</label>
+                            <textarea class="form-textarea" id="settEmailBody" style="min-height: 140px;">${settings.emailSettings?.defaultBody || `Dear {client_name},\n\nPlease find below the details of your invoice.\n\nInvoice Number: {invoice_number}\nAmount Due: {total}\nDue Date: {due_date}\n\nIf you have any questions regarding this invoice, please don't hesitate to contact us.\n\nThank you for your business!\n\nBest regards,\n{company_name}`}</textarea>
+                            <small style="color: var(--text-light); font-size: 11px;">Variables: {invoice_number}, {company_name}, {client_name}, {total}, {due_date}</small>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button type="submit" class="btn btn-primary">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                    <polyline points="17,21 17,13 7,13 7,21"/>
+                                    <polyline points="7,3 7,8 15,8"/>
+                                </svg>
+                                Save Email Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <h3>Data Management</h3>
@@ -169,6 +216,19 @@ function handleSaveInvoiceSettings(event) {
     settings.defaultNotes = document.getElementById('settDefaultNotes').value;
     Store.saveSettings(settings);
     Utils.showToast('Invoice settings saved!');
+}
+
+function handleSaveEmailSettings(event) {
+    event.preventDefault();
+    const settings = Store.getSettings();
+    settings.emailSettings = {
+        senderEmail: document.getElementById('settSenderEmail').value,
+        senderName: document.getElementById('settSenderName').value,
+        defaultSubject: document.getElementById('settEmailSubject').value,
+        defaultBody: document.getElementById('settEmailBody').value
+    };
+    Store.saveSettings(settings);
+    Utils.showToast('Email settings saved!');
 }
 
 function exportData() {

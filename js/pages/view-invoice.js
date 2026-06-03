@@ -49,6 +49,15 @@ function renderViewInvoice(invoiceId) {
                     </svg>
                     Print / Download
                 </button>
+                ${invoice.clientEmail ? `
+                    <button class="btn btn-outline" onclick="showSendEmailModal('${invoice.id}')" style="color: var(--accent); border-color: var(--accent);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        Send via Email
+                    </button>
+                ` : ''}
                 ${invoice.status !== 'paid' ? `
                     <button class="btn btn-success" onclick="showRecordPaymentModal('${invoice.id}')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -454,4 +463,130 @@ function duplicateInvoice(invoiceId) {
     Store.saveInvoice(newInvoice);
     Utils.showToast('Invoice duplicated!');
     App.navigate('view-invoice', newInvoice.id);
+}
+
+
+/* ============================================
+   Email Invoice Feature
+   ============================================ */
+
+function getEmailVariables(invoice, settings) {
+    return {
+        '{invoice_number}': invoice.invoiceNumber,
+        '{company_name}': settings.company.name || 'DesignFox Pvt Ltd',
+        '{client_name}': invoice.clientName || 'Client',
+        '{total}': Utils.formatCurrency(invoice.total),
+        '{due_date}': Utils.formatDate(invoice.dueDate)
+    };
+}
+
+function replaceEmailVariables(template, variables) {
+    let result = template;
+    for (const [key, value] of Object.entries(variables)) {
+        result = result.split(key).join(value);
+    }
+    return result;
+}
+
+function showSendEmailModal(invoiceId) {
+    const invoice = Store.getInvoice(invoiceId);
+    if (!invoice) return;
+
+    const settings = Store.getSettings();
+    const emailSettings = settings.emailSettings || {};
+    const variables = getEmailVariables(invoice, settings);
+
+    // Build default subject & body with variables replaced
+    const defaultSubject = emailSettings.defaultSubject || 'Invoice {invoice_number} from {company_name}';
+    const defaultBody = emailSettings.defaultBody || `Dear {client_name},\n\nPlease find below the details of your invoice.\n\nInvoice Number: {invoice_number}\nAmount Due: {total}\nDue Date: {due_date}\n\nIf you have any questions regarding this invoice, please don't hesitate to contact us.\n\nThank you for your business!\n\nBest regards,\n{company_name}`;
+
+    const subject = replaceEmailVariables(defaultSubject, variables);
+    const body = replaceEmailVariables(defaultBody, variables);
+
+    // Build items summary for email body
+    const itemsSummary = invoice.items.map((item, i) => 
+        `${i + 1}. ${item.service || 'Service'}${item.description ? ' - ' + item.description : ''} (Qty: ${item.quantity}, Rate: ${Utils.formatCurrency(item.rate)}) = ${Utils.formatCurrency(item.quantity * item.rate)}`
+    ).join('\n');
+
+    const fullBody = body + '\n\n--- Invoice Details ---\n' + itemsSummary + 
+        '\n\nSubtotal: ' + Utils.formatCurrency(invoice.subtotal) +
+        (invoice.tax > 0 ? '\nTax: ' + Utils.formatCurrency(invoice.tax) : '') +
+        (invoice.discount > 0 ? '\nDiscount: -' + Utils.formatCurrency(invoice.discount) : '') +
+        '\nTotal: ' + Utils.formatCurrency(invoice.total) +
+        '\n\nDue Date: ' + Utils.formatDate(invoice.dueDate);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" width="20" height="20">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        Send Invoice via Email
+                    </span>
+                </h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="background: #ecfeff; border: 1px solid #a5f3fc; border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px;">
+                    <p style="font-size: 12px; color: #0891b2; line-height: 1.5;">
+                        This will open your default email app (Gmail, Outlook, etc.) with all details pre-filled. You can review and send from there.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">To (Client Email) *</label>
+                    <input type="email" class="form-input" id="emailTo" value="${invoice.clientEmail || ''}" placeholder="client@email.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subject</label>
+                    <input type="text" class="form-input" id="emailSubject" value="${subject}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Message Body</label>
+                    <textarea class="form-textarea" id="emailBody" style="min-height: 220px; font-size: 13px; line-height: 1.6;">${fullBody}</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                <button class="btn btn-primary" onclick="sendInvoiceEmail()" style="background: var(--accent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22,2 15,22 11,13 2,9 22,2"/>
+                    </svg>
+                    Open Email App & Send
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function sendInvoiceEmail() {
+    const to = document.getElementById('emailTo').value.trim();
+    const subject = document.getElementById('emailSubject').value.trim();
+    const body = document.getElementById('emailBody').value.trim();
+
+    if (!to) {
+        Utils.showToast('Please enter client email address', 'error');
+        return;
+    }
+
+    // Build mailto URL
+    const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Open in user's default email client
+    window.open(mailtoUrl, '_self');
+
+    // Close modal and show confirmation
+    document.querySelector('.modal-overlay')?.remove();
+    Utils.showToast('Email app opened! Review and send the email.', 'info');
 }
