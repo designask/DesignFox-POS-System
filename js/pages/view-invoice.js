@@ -34,6 +34,13 @@ function renderViewInvoice(invoiceId) {
                     </svg>
                     Edit
                 </button>
+                <button class="btn btn-outline" onclick="duplicateInvoice('${invoice.id}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    Duplicate
+                </button>
                 <button class="btn btn-primary" onclick="printInvoice('${invoice.id}')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                         <polyline points="6,9 6,2 18,2 18,9"/>
@@ -43,12 +50,12 @@ function renderViewInvoice(invoiceId) {
                     Print / Download
                 </button>
                 ${invoice.status !== 'paid' ? `
-                    <button class="btn btn-success" onclick="markAsPaid('${invoice.id}')">
+                    <button class="btn btn-success" onclick="showRecordPaymentModal('${invoice.id}')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                            <polyline points="22,4 12,14.01 9,11.01"/>
+                            <line x1="12" y1="1" x2="12" y2="23"/>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                         </svg>
-                        Mark as Paid
+                        Record Payment
                     </button>
                 ` : ''}
             </div>
@@ -152,6 +159,9 @@ function renderViewInvoice(invoiceId) {
                     </div>
                 ` : ''}
             </div>
+
+            <!-- Payment History -->
+            ${renderPaymentHistory(invoice)}
         </div>
     `;
 }
@@ -264,4 +274,184 @@ function printInvoice(invoiceId) {
     printWindow.onload = function() {
         printWindow.print();
     };
+}
+
+
+
+function renderPaymentHistory(invoice) {
+    const payments = Store.getPayments(invoice.id);
+    const totalPaid = payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    const balance = (parseFloat(invoice.total) || 0) - totalPaid;
+
+    if (payments.length === 0 && invoice.status === 'paid') return '';
+
+    return `
+        <div class="card" style="margin-top: 24px;">
+            <div class="card-header">
+                <h3>Payment History</h3>
+                <div style="display: flex; gap: 16px; font-size: 13px;">
+                    <span>Paid: <strong style="color: var(--success);">${Utils.formatCurrency(totalPaid)}</strong></span>
+                    <span>Balance: <strong style="color: ${balance > 0 ? 'var(--danger)' : 'var(--success)'};">${Utils.formatCurrency(balance)}</strong></span>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                ${payments.length > 0 ? `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                                <th>Note</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${payments.map(p => `
+                                <tr>
+                                    <td>${Utils.formatDate(p.date)}</td>
+                                    <td><strong style="color: var(--success);">${Utils.formatCurrency(p.amount)}</strong></td>
+                                    <td>${p.method || '-'}</td>
+                                    <td style="font-size: 12px; color: var(--text-secondary);">${p.note || '-'}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline" onclick="deletePaymentRecord('${p.id}', '${invoice.id}')" style="color: var(--danger); border-color: #fecaca; padding: 4px 8px;">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : `
+                    <div style="padding: 24px; text-align: center; color: var(--text-secondary); font-size: 13px;">
+                        No payments recorded yet
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+function showRecordPaymentModal(invoiceId) {
+    const invoice = Store.getInvoice(invoiceId);
+    if (!invoice) return;
+    const totalPaid = Store.getTotalPaid(invoiceId);
+    const balance = (parseFloat(invoice.total) || 0) - totalPaid;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Record Payment</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="background: var(--bg-primary); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between;">
+                    <span style="font-size: 13px; color: var(--text-secondary);">Outstanding Balance</span>
+                    <strong style="color: var(--danger);">${Utils.formatCurrency(balance)}</strong>
+                </div>
+                <form id="paymentForm" onsubmit="handleSavePayment(event, '${invoiceId}')">
+                    <div class="form-group">
+                        <label class="form-label">Amount *</label>
+                        <input type="number" class="form-input" id="paymentAmount" required min="0.01" step="0.01" value="${balance.toFixed(2)}" placeholder="0.00">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-input" id="paymentDate" value="${Utils.getToday()}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Method</label>
+                            <select class="form-select" id="paymentMethod">
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Online">Online Payment</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Note (optional)</label>
+                        <input type="text" class="form-input" id="paymentNote" placeholder="Reference number, etc.">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                <button class="btn btn-success" onclick="document.getElementById('paymentForm').requestSubmit()">Record Payment</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function handleSavePayment(event, invoiceId) {
+    event.preventDefault();
+    const payment = {
+        id: Utils.generateId(),
+        invoiceId: invoiceId,
+        amount: parseFloat(document.getElementById('paymentAmount').value) || 0,
+        date: document.getElementById('paymentDate').value,
+        method: document.getElementById('paymentMethod').value,
+        note: document.getElementById('paymentNote').value,
+        createdAt: new Date().toISOString()
+    };
+
+    Store.savePayment(payment);
+
+    // Check if fully paid
+    const invoice = Store.getInvoice(invoiceId);
+    const totalPaid = Store.getTotalPaid(invoiceId);
+    if (totalPaid >= parseFloat(invoice.total)) {
+        invoice.status = 'paid';
+        invoice.updatedAt = new Date().toISOString();
+        Store.saveInvoice(invoice);
+    }
+
+    document.querySelector('.modal-overlay')?.remove();
+    Utils.showToast('Payment recorded!');
+    App.navigate('view-invoice', invoiceId);
+}
+
+function deletePaymentRecord(paymentId, invoiceId) {
+    Store.deletePayment(paymentId);
+    // Recheck status
+    const invoice = Store.getInvoice(invoiceId);
+    const totalPaid = Store.getTotalPaid(invoiceId);
+    if (totalPaid < parseFloat(invoice.total) && invoice.status === 'paid') {
+        invoice.status = 'pending';
+        invoice.updatedAt = new Date().toISOString();
+        Store.saveInvoice(invoice);
+    }
+    Utils.showToast('Payment removed');
+    App.navigate('view-invoice', invoiceId);
+}
+
+function duplicateInvoice(invoiceId) {
+    const original = Store.getInvoice(invoiceId);
+    if (!original) return;
+
+    const newInvoice = {
+        ...original,
+        id: Utils.generateId(),
+        invoiceNumber: Store.getNextInvoiceNumber(),
+        date: Utils.getToday(),
+        dueDate: Utils.getFutureDate(Store.getSettings().paymentTerms || 14),
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    Store.saveInvoice(newInvoice);
+    Utils.showToast('Invoice duplicated!');
+    App.navigate('view-invoice', newInvoice.id);
 }

@@ -5,6 +5,7 @@
 function renderDashboard() {
     const invoices = Store.getInvoices();
     const clients = Store.getClients();
+    const quotations = Store.getQuotations();
     
     const totalRevenue = invoices
         .filter(inv => inv.status === 'paid')
@@ -17,10 +18,24 @@ function renderDashboard() {
     const totalInvoices = invoices.length;
     const totalClients = clients.length;
 
+    // This month stats
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthInvoices = invoices.filter(inv => inv.date && inv.date.startsWith(thisMonth));
+    const thisMonthRevenue = thisMonthInvoices
+        .filter(inv => inv.status === 'paid')
+        .reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+
     // Recent invoices
     const recentInvoices = [...invoices]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 5);
+
+    // Overdue invoices
+    const overdueInvoices = invoices.filter(inv => {
+        if (inv.status === 'paid' || inv.status === 'draft') return false;
+        return new Date(inv.dueDate) < now;
+    });
 
     return `
         <div class="dashboard-page">
@@ -70,24 +85,52 @@ function renderDashboard() {
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="card mb-4" style="margin-bottom: 24px;">
-                <div class="card-body" style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" onclick="App.navigate('create-invoice')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 5v14M5 12h14"/>
-                        </svg>
-                        Create New Invoice
-                    </button>
-                    <button class="btn btn-outline" onclick="App.navigate('clients')">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="8.5" cy="7" r="4"/>
-                            <line x1="20" y1="8" x2="20" y2="14"/>
-                            <line x1="23" y1="11" x2="17" y2="11"/>
-                        </svg>
-                        Add Client
-                    </button>
+            <!-- Quick Actions & This Month -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Quick Actions</h3>
+                    </div>
+                    <div class="card-body" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="App.navigate('create-invoice')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+                            New Invoice
+                        </button>
+                        <button class="btn btn-outline" onclick="App.navigate('create-quotation')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+                            New Quotation
+                        </button>
+                        <button class="btn btn-outline" onclick="App.navigate('clients')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                            Add Client
+                        </button>
+                        <button class="btn btn-outline" onclick="App.navigate('reports')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            View Reports
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>This Month</h3>
+                        <span style="font-size: 12px; color: var(--text-light);">${now.toLocaleString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; text-align: center;">
+                            <div>
+                                <div style="font-size: 22px; font-weight: 800; color: var(--success);">${Utils.formatCurrency(thisMonthRevenue)}</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Revenue</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 22px; font-weight: 800; color: var(--accent);">${thisMonthInvoices.length}</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Invoices</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 22px; font-weight: 800; color: var(--danger);">${overdueInvoices.length}</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Overdue</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

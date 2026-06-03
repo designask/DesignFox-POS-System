@@ -10,6 +10,7 @@ const App = {
         this.setupNavigation();
         this.setupMobileMenu();
         this.updateDate();
+        this.loadDarkMode();
         this.navigate('dashboard');
     },
 
@@ -31,7 +32,6 @@ const App = {
             sidebar.classList.toggle('open');
         });
 
-        // Close sidebar on page navigate (mobile)
         document.addEventListener('click', (e) => {
             if (window.innerWidth <= 1024 && !sidebar.contains(e.target) && !toggle.contains(e.target)) {
                 sidebar.classList.remove('open');
@@ -49,6 +49,20 @@ const App = {
         }
     },
 
+    loadDarkMode() {
+        const settings = Store.getSettings();
+        if (settings.darkMode) {
+            document.body.classList.add('dark-mode');
+        }
+    },
+
+    toggleDarkMode() {
+        document.body.classList.toggle('dark-mode');
+        const settings = Store.getSettings();
+        settings.darkMode = document.body.classList.contains('dark-mode');
+        Store.saveSettings(settings);
+    },
+
     navigate(page, param = null) {
         this.currentPage = page;
         this.currentParam = param;
@@ -64,7 +78,11 @@ const App = {
             'create-invoice': param ? 'Edit Invoice' : 'New Invoice',
             'invoices': 'Invoices',
             'clients': 'Clients',
-            'view-invoice': 'Invoice Details'
+            'view-invoice': 'Invoice Details',
+            'quotations': 'Quotations',
+            'create-quotation': param ? 'Edit Quotation' : 'New Quotation',
+            'reports': 'Reports & Analytics',
+            'settings': 'Settings'
         };
         document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
 
@@ -88,6 +106,18 @@ const App = {
             case 'view-invoice':
                 html = renderViewInvoice(param);
                 break;
+            case 'quotations':
+                html = renderQuotations();
+                break;
+            case 'create-quotation':
+                html = renderCreateQuotation(param);
+                break;
+            case 'reports':
+                html = renderReports();
+                break;
+            case 'settings':
+                html = renderSettings();
+                break;
             default:
                 html = renderDashboard();
         }
@@ -98,9 +128,12 @@ const App = {
         // Close mobile sidebar
         document.getElementById('sidebar').classList.remove('open');
 
-        // Recalculate totals if on invoice page
+        // Recalculate totals if on invoice/quotation page
         if (page === 'create-invoice') {
             setTimeout(calculateTotals, 50);
+        }
+        if (page === 'create-quotation') {
+            setTimeout(calculateQTotals, 50);
         }
     }
 };

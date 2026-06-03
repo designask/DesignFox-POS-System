@@ -6,7 +6,9 @@ const Store = {
     KEYS: {
         INVOICES: 'designfox_invoices',
         CLIENTS: 'designfox_clients',
-        SETTINGS: 'designfox_settings'
+        SETTINGS: 'designfox_settings',
+        QUOTATIONS: 'designfox_quotations',
+        PAYMENTS: 'designfox_payments'
     },
 
     // Initialize with sample data if empty
@@ -16,6 +18,12 @@ const Store = {
         }
         if (!localStorage.getItem(this.KEYS.CLIENTS)) {
             localStorage.setItem(this.KEYS.CLIENTS, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(this.KEYS.QUOTATIONS)) {
+            localStorage.setItem(this.KEYS.QUOTATIONS, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(this.KEYS.PAYMENTS)) {
+            localStorage.setItem(this.KEYS.PAYMENTS, JSON.stringify([]));
         }
         if (!localStorage.getItem(this.KEYS.SETTINGS)) {
             localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify({
@@ -28,7 +36,10 @@ const Store = {
                 },
                 taxRate: 0,
                 currency: 'LKR',
-                invoicePrefix: 'DF'
+                invoicePrefix: 'DF',
+                paymentTerms: 14,
+                defaultNotes: 'Thank you for your business!\nPayment is due within 14 days of invoice date.',
+                darkMode: false
             }));
         }
     },
@@ -93,6 +104,60 @@ const Store = {
     deleteClient(id) {
         const clients = this.getClients().filter(c => c.id !== id);
         localStorage.setItem(this.KEYS.CLIENTS, JSON.stringify(clients));
+    },
+
+    // Quotations
+    getQuotations() {
+        return JSON.parse(localStorage.getItem(this.KEYS.QUOTATIONS) || '[]');
+    },
+
+    getQuotation(id) {
+        return this.getQuotations().find(q => q.id === id);
+    },
+
+    saveQuotation(quotation) {
+        const quotations = this.getQuotations();
+        const idx = quotations.findIndex(q => q.id === quotation.id);
+        if (idx >= 0) quotations[idx] = quotation;
+        else quotations.push(quotation);
+        localStorage.setItem(this.KEYS.QUOTATIONS, JSON.stringify(quotations));
+        return quotation;
+    },
+
+    deleteQuotation(id) {
+        const quotations = this.getQuotations().filter(q => q.id !== id);
+        localStorage.setItem(this.KEYS.QUOTATIONS, JSON.stringify(quotations));
+    },
+
+    getNextQuotationNumber() {
+        const quotations = this.getQuotations();
+        const settings = this.getSettings();
+        const year = new Date().getFullYear();
+        const count = quotations.length + 1;
+        return `QT-${year}-${String(count).padStart(4, '0')}`;
+    },
+
+    // Payments
+    getPayments(invoiceId) {
+        const payments = JSON.parse(localStorage.getItem(this.KEYS.PAYMENTS) || '[]');
+        if (invoiceId) return payments.filter(p => p.invoiceId === invoiceId);
+        return payments;
+    },
+
+    savePayment(payment) {
+        const payments = JSON.parse(localStorage.getItem(this.KEYS.PAYMENTS) || '[]');
+        payments.push(payment);
+        localStorage.setItem(this.KEYS.PAYMENTS, JSON.stringify(payments));
+        return payment;
+    },
+
+    deletePayment(paymentId) {
+        const payments = JSON.parse(localStorage.getItem(this.KEYS.PAYMENTS) || '[]').filter(p => p.id !== paymentId);
+        localStorage.setItem(this.KEYS.PAYMENTS, JSON.stringify(payments));
+    },
+
+    getTotalPaid(invoiceId) {
+        return this.getPayments(invoiceId).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     },
 
     // Settings
