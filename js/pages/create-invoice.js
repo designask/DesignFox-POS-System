@@ -133,7 +133,7 @@ function renderCreateInvoice(editId) {
                                 <div class="total-row">
                                     <span>Discount</span>
                                     <span>
-                                        <input type="number" class="form-input" id="discountInput" value="${invoice ? invoice.discount || 0 : 0}" min="0" step="0.01" style="width: 100px; padding: 6px 10px; text-align: right;" onchange="calculateTotals()">
+                                        <input type="number" class="form-input" id="discountInput" value="${invoice ? invoice.discount || 0 : 0}" min="0" step="0.01" style="width: 100px; padding: 6px 10px; text-align: right;" oninput="calculateTotals()">
                                     </span>
                                 </div>
                                 <div class="total-row grand-total">
@@ -181,15 +181,15 @@ function renderInvoiceItems(services) {
                 </select>
             </td>
             <td>
-                <input type="text" class="form-input" value="${item.description || ''}" placeholder="Description" onchange="updateItemField(${index}, 'description', this.value)">
+                <input type="text" class="form-input" value="${item.description || ''}" placeholder="Description" oninput="updateItemField(${index}, 'description', this.value)">
             </td>
             <td>
-                <input type="number" class="form-input" value="${item.quantity}" min="1" step="1" onchange="updateItemField(${index}, 'quantity', this.value); calculateTotals()">
+                <input type="number" class="form-input" value="${item.quantity}" min="1" step="1" oninput="updateItemField(${index}, 'quantity', this.value); calculateTotals()">
             </td>
             <td>
-                <input type="number" class="form-input" value="${item.rate}" min="0" step="0.01" onchange="updateItemField(${index}, 'rate', this.value); calculateTotals()">
+                <input type="number" class="form-input" value="${item.rate}" min="0" step="0.01" oninput="updateItemField(${index}, 'rate', this.value); calculateTotals()">
             </td>
-            <td style="font-weight: 600; font-size: 14px;">
+            <td style="font-weight: 600; font-size: 14px;" id="itemAmount_${index}">
                 ${Utils.formatCurrency(item.quantity * item.rate)}
             </td>
             <td>
@@ -243,6 +243,14 @@ function calculateTotals() {
     const tax = subtotal * (taxRate / 100);
     const discount = parseFloat(document.getElementById('discountInput')?.value) || 0;
     const total = subtotal + tax - discount;
+
+    // Update each item's amount display live
+    invoiceItems.forEach((item, index) => {
+        const amountEl = document.getElementById(`itemAmount_${index}`);
+        if (amountEl) {
+            amountEl.textContent = Utils.formatCurrency(item.quantity * item.rate);
+        }
+    });
 
     const subtotalEl = document.getElementById('subtotalDisplay');
     const taxEl = document.getElementById('taxDisplay');
